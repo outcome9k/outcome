@@ -96,7 +96,7 @@ func downloadTool(tool Tool) (string, error) {
 	return string(body), nil
 }
 
-// runToolWithArgs prompts for arguments (must include --input or -i) and runs the tool
+// runToolWithArgs prompts for input/output file paths and runs the tool with proper args
 func runToolWithArgs(name, content string) error {
 	tmpFile, err := os.CreateTemp("", name+"-*")
 	if err != nil {
@@ -112,39 +112,55 @@ func runToolWithArgs(name, content string) error {
 	isPython := strings.Contains(content, "import ") || strings.Contains(content, "def ")
 
 	reader := bufio.NewReader(os.Stdin)
+
+	// Prompt user for input file path
+	var inputFile string
 	for {
-		fmt.Printf("%sEnter arguments for %s (must include --input or -i): %s", Yellow, name, Reset)
-		argsStr, _ := reader.ReadString('\n')
-		argsStr = strings.TrimSpace(argsStr)
-
-		if argsStr == "" {
-			fmt.Println(Red + "No arguments provided, skipping this tool." + Reset)
-			return nil
-		}
-
-		// Check if input argument provided
-		if !strings.Contains(argsStr, "--input") && !strings.Contains(argsStr, "-i") {
-			fmt.Println(Red + "Error: You must specify --input or -i argument with input file path." + Reset)
+		fmt.Printf("%sEnter the path of the Python file to obfuscate (input file): %s", Yellow, Reset)
+		inputFile, _ = reader.ReadString('\n')
+		inputFile = strings.TrimSpace(inputFile)
+		if inputFile == "" {
+			fmt.Println(Red + "Input file path cannot be empty!" + Reset)
 			continue
 		}
-
-		args := strings.Fields(argsStr)
-		var cmd *exec.Cmd
-		if isPython {
-			cmd = exec.Command("python3", append([]string{tmpFile.Name()}, args...)...)
-		} else {
-			cmd = exec.Command("bash", append([]string{tmpFile.Name()}, args...)...)
+		if _, err := os.Stat(inputFile); os.IsNotExist(err) {
+			fmt.Println(Red + "Input file does not exist. Please enter a valid path." + Reset)
+			continue
 		}
-
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		err = cmd.Run()
-		if err != nil {
-			fmt.Printf(Red+"Execution failed: %v\n"+Reset, err)
-		}
-		return err
+		break
 	}
+
+	// Prompt for optional output file path
+	fmt.Printf("%sEnter output file path (optional, press Enter to skip): %s", Yellow, Reset)
+	outputFile, _ := reader.ReadString('\n')
+	outputFile = strings.TrimSpace(outputFile)
+
+	// Build argument slice with --input/-i and optional --output/-o
+	args := []string{}
+
+	// Add --input or -i
+	args = append(args, "--input", inputFile)
+
+	// Add output if provided
+	if outputFile != "" {
+		args = append(args, "--output", outputFile)
+	}
+
+	var cmd *exec.Cmd
+	if isPython {
+		cmd = exec.Command("python3", append([]string{tmpFile.Name()}, args...)...)
+	} else {
+		cmd = exec.Command("bash", append([]string{tmpFile.Name()}, args...)...)
+	}
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err = cmd.Run()
+	if err != nil {
+		fmt.Printf(Red+"Execution failed: %v\n"+Reset, err)
+	}
+	return err
 }
 
 func main() {
