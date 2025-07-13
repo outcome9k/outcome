@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"io"
-	"time"
+	//"time"
 )
 // Color and style ANSI codes
 const (
