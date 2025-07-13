@@ -96,7 +96,7 @@ func downloadTool(tool Tool) (string, error) {
 	return string(body), nil
 }
 
-// runToolWithArgs prompts for arguments (enforce --input or -i) and runs the tool
+// runToolWithArgs prompts for arguments (must include --input or -i) and runs the tool
 func runToolWithArgs(name, content string) error {
 	tmpFile, err := os.CreateTemp("", name+"-*")
 	if err != nil {
