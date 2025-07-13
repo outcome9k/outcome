@@ -1,14 +1,15 @@
 package main
+
 import (
+	"bufio"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
-	"bufio"
-	"net/http"
 	"strings"
-	"io"
-	//"time"
 )
+
 // Color and style ANSI codes
 const (
 	Red    = "\033[31m"
@@ -95,8 +96,8 @@ func downloadTool(tool Tool) (string, error) {
 	return string(body), nil
 }
 
-// runTool saves content to temp file and executes it
-func runTool(name, content string) error {
+// runToolWithArgs prompts for arguments (enforce --input or -i) and runs the tool
+func runToolWithArgs(name, content string) error {
 	tmpFile, err := os.CreateTemp("", name+"-*")
 	if err != nil {
 		return err
@@ -108,21 +109,42 @@ func runTool(name, content string) error {
 	}
 	tmpFile.Close()
 
-	// Detect Python script by simple keyword check
 	isPython := strings.Contains(content, "import ") || strings.Contains(content, "def ")
 
-	var cmd *exec.Cmd
-	if isPython {
-		fmt.Printf("%sDetected Python script. Running with python3...%s\n", Cyan, Reset)
-		cmd = exec.Command("python3", tmpFile.Name())
-	} else {
-		fmt.Printf("%sDetected Bash script. Running with bash...%s\n", Cyan, Reset)
-		cmd = exec.Command("bash", tmpFile.Name())
-	}
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Printf("%sEnter arguments for %s (must include --input or -i): %s", Yellow, name, Reset)
+		argsStr, _ := reader.ReadString('\n')
+		argsStr = strings.TrimSpace(argsStr)
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+		if argsStr == "" {
+			fmt.Println(Red + "No arguments provided, skipping this tool." + Reset)
+			return nil
+		}
+
+		// Check if input argument provided
+		if !strings.Contains(argsStr, "--input") && !strings.Contains(argsStr, "-i") {
+			fmt.Println(Red + "Error: You must specify --input or -i argument with input file path." + Reset)
+			continue
+		}
+
+		args := strings.Fields(argsStr)
+		var cmd *exec.Cmd
+		if isPython {
+			cmd = exec.Command("python3", append([]string{tmpFile.Name()}, args...)...)
+		} else {
+			cmd = exec.Command("bash", append([]string{tmpFile.Name()}, args...)...)
+		}
+
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		err = cmd.Run()
+		if err != nil {
+			fmt.Printf(Red+"Execution failed: %v\n"+Reset, err)
+		}
+		return err
+	}
 }
 
 func main() {
@@ -146,7 +168,7 @@ func main() {
 					fmt.Printf("%sFailed to download %s: %v%s\n", Red, tool.Name, err, Reset)
 					continue
 				}
-				if err := runTool(tool.Name, content); err != nil {
+				if err := runToolWithArgs(tool.Name, content); err != nil {
 					fmt.Printf("%sFailed to run %s: %v%s\n", Red, tool.Name, err, Reset)
 				}
 				fmt.Println(strings.Repeat("-", 30))
@@ -161,7 +183,7 @@ func main() {
 				reader.ReadString('\n')
 				continue
 			}
-			if err := runTool(tool.Name, content); err != nil {
+			if err := runToolWithArgs(tool.Name, content); err != nil {
 				fmt.Printf("%sFailed to run %s: %v%s\n", Red, tool.Name, err, Reset)
 			}
 			fmt.Print("Press Enter to continue...")
