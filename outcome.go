@@ -1,16 +1,4 @@
 package main
-
-import (
-	"bufio"
-	"fmt"
-	"io"
-	"net/http"
-	"os"
-	"os/exec"
-	"strings"
-	"time"
-)
-
 // Color and style ANSI codes
 const (
 	Red    = "\033[31m"
